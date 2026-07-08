@@ -87,3 +87,18 @@ exports.getMe = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Update user measurements
+// @route   PUT /api/auth/measurements
+exports.updateMeasurements = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { measurements: req.body },
+      { new: true }
+    ).select('-password');
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
