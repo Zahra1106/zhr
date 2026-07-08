@@ -23,5 +23,6 @@ app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/fabrics', require('./routes/fabricRoutes'));
 app.use('/api/design-options', require('./routes/designOptionRoutes'));
 app.use('/api/designs', require('./routes/designRoutes'));
+app.use('/api/orders', require('./routes/orderRoutes'));
 
 module.exports = app;
