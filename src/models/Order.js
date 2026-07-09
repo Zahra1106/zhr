@@ -20,11 +20,19 @@ const orderSchema = new mongoose.Schema(
       postalCode: String,
       phone: { type: String, required: true },
     },
-    paymentMethod: {
-      type: String,
-      enum: ['COD', 'EasyPaisa', 'JazzCash', 'Card'],
-      required: true,
-    },
+   paymentMethod: {
+  type: String,
+  enum: ['COD', 'Advance Transfer'],
+  required: true,
+},
+advanceAmount: {
+  type: Number,
+  default: 0,
+},
+remainingAmount: {
+  type: Number,
+  default: 0,
+},
     totalAmount: {
       type: Number,
       required: true,

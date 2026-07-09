@@ -11,7 +11,15 @@ exports.placeOrder = async (req, res) => {
     if (!design) return res.status(404).json({ message: 'Design not found' });
 
     const estimatedDeliveryDate = new Date();
-    estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 14); // 14 days default
+    estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 14);
+
+    let advanceAmount = 0;
+    let remainingAmount = design.estimatedPrice;
+
+    if (paymentMethod === 'Advance Transfer') {
+      advanceAmount = Math.round(design.estimatedPrice * 0.5);
+      remainingAmount = design.estimatedPrice - advanceAmount;
+    }
 
     const order = await Order.create({
       user: req.user.id,
@@ -19,6 +27,8 @@ exports.placeOrder = async (req, res) => {
       deliveryAddress,
       paymentMethod,
       totalAmount: design.estimatedPrice,
+      advanceAmount,
+      remainingAmount,
       estimatedDeliveryDate,
     });
 
