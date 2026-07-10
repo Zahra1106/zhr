@@ -67,11 +67,12 @@ exports.login = async (req, res) => {
     }
 
     res.status(200).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      token: generateToken(user._id),
-    });
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  isAdmin: user.isAdmin,
+  token: generateToken(user._id),
+});
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }

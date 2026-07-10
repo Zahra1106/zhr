@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
       enum: ['local', 'google'],
       default: 'local',
     },
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
     phone: {
       type: String,
       trim: true,
