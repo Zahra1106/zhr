@@ -103,3 +103,77 @@ exports.updateMeasurements = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Toggle wishlist (add/remove design)
+// @route   POST /api/auth/wishlist/:designId
+exports.toggleWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const designId = req.params.designId;
+
+    const index = user.wishlist.findIndex((id) => id.toString() === designId);
+
+    if (index > -1) {
+      user.wishlist.splice(index, 1);
+    } else {
+      user.wishlist.push(designId);
+    }
+
+    await user.save();
+    res.status(200).json({ wishlist: user.wishlist });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get wishlist (populated)
+// @route   GET /api/auth/wishlist
+exports.getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate({
+      path: 'wishlist',
+      populate: { path: 'fabric' },
+    });
+    res.status(200).json(user.wishlist);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Add address
+// @route   POST /api/auth/addresses
+exports.addAddress = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    user.addresses.push(req.body);
+    await user.save();
+    res.status(201).json(user.addresses);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get addresses
+// @route   GET /api/auth/addresses
+exports.getAddresses = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    res.status(200).json(user.addresses);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Delete address
+// @route   DELETE /api/auth/addresses/:addressId
+exports.deleteAddress = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    user.addresses = user.addresses.filter(
+      (addr) => addr._id.toString() !== req.params.addressId
+    );
+    await user.save();
+    res.status(200).json(user.addresses);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
