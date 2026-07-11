@@ -1,6 +1,8 @@
 const User = require('../models/users');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const Otp = require('../models/Otp');
+const { sendOtpEmail } = require('../config/emailService');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -179,25 +181,60 @@ exports.deleteAddress = async (req, res) => {
 };
 // @desc    Reset password (simplified — no email verification link)
 // @route   POST /api/auth/reset-password
-exports.resetPassword = async (req, res) => {
+// @desc    Send OTP to email for password reset
+// @route   POST /api/auth/send-otp
+exports.sendOtp = async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
 
-    if (!email || !newPassword) {
-      return res.status(400).json({ message: 'Email and new password are required' });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'No account found with this email' });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await Otp.deleteMany({ email }); // remove old OTPs
+    await Otp.create({ email, code: otpCode, expiresAt });
+
+    await sendOtpEmail(email, otpCode);
+
+    res.status(200).json({ message: 'OTP sent to your email' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Verify OTP and reset password
+// @route   POST /api/auth/verify-otp-reset
+exports.verifyOtpAndReset = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
     if (newPassword.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'No account found with this email' });
+    const otpRecord = await Otp.findOne({ email, code: otp });
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'Invalid OTP' });
     }
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteMany({ email });
+      return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
+
+    await Otp.deleteMany({ email });
 
     res.status(200).json({ message: 'Password reset successfully' });
   } catch (error) {

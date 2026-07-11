@@ -4,7 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const {
   signup, login, getMe, updateMeasurements,
   toggleWishlist, getWishlist, addAddress, getAddresses, deleteAddress,
-  resetPassword, googleLogin,
+  sendOtp, verifyOtpAndReset, googleLogin,
 } = require('../controllers/authController');
 
 router.post('/signup', signup);
@@ -16,6 +16,7 @@ router.get('/wishlist', protect, getWishlist);
 router.post('/addresses', protect, addAddress);
 router.get('/addresses', protect, getAddresses);
 router.delete('/addresses/:addressId', protect, deleteAddress);
-router.post('/reset-password', resetPassword);
+router.post('/send-otp', sendOtp);
+router.post('/verify-otp-reset', verifyOtpAndReset);
 router.post('/google-login', googleLogin);
 module.exports = router;
