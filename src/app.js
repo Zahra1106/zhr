@@ -25,5 +25,6 @@ app.use('/api/design-options', require('./routes/designOptionRoutes'));
 app.use('/api/designs', require('./routes/designRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
 
 module.exports = app;
