@@ -66,3 +66,63 @@ exports.deleteProduct = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+const csv = require('csv-parser');
+const { Readable } = require('stream');
+
+// @desc    Bulk import products from CSV
+// @route   POST /api/products/bulk-import
+exports.bulkImportProducts = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No CSV file uploaded' });
+    }
+
+    const results = [];
+    const stream = Readable.from(req.file.buffer.toString());
+
+    stream
+      .pipe(csv())
+      .on('data', (row) => {
+        // Parse sizes format: "S:10,M:15,L:8"
+        const sizes = row.sizes
+          ? row.sizes.split(',').map((s) => {
+              const [size, stock] = s.split(':');
+              return { size: size.trim(), stock: Number(stock?.trim()) || 0 };
+            })
+          : [];
+
+        // Parse images format: "url1|url2|url3"
+        const images = row.images
+          ? row.images.split('|').map((i) => i.trim()).filter(Boolean)
+          : [];
+
+        results.push({
+          name: row.name,
+          description: row.description || '',
+          price: Number(row.price) || 0,
+          discountPercent: Number(row.discount) || 0,
+          gender: row.gender || 'women',
+          fabric: row.fabric || '',
+          sizes,
+          images,
+          isFeatured: row.featured?.toLowerCase() === 'true',
+        });
+      })
+      .on('end', async () => {
+        try {
+          const inserted = await Product.insertMany(results);
+          res.status(201).json({
+            message: `${inserted.length} products imported successfully`,
+            count: inserted.length,
+          });
+        } catch (err) {
+          res.status(500).json({ message: 'Error saving products', error: err.message });
+        }
+      })
+      .on('error', (err) => {
+        res.status(500).json({ message: 'Error parsing CSV', error: err.message });
+      });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
