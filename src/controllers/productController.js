@@ -1,4 +1,6 @@
 const Product = require('../models/Product');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
 
 // @desc    Get all products (with filters)
 // @route   GET /api/products
@@ -66,8 +68,6 @@ exports.deleteProduct = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-const csv = require('csv-parser');
-const { Readable } = require('stream');
 
 // @desc    Bulk import products from CSV
 // @route   POST /api/products/bulk-import
@@ -110,7 +110,16 @@ exports.bulkImportProducts = async (req, res) => {
       })
       .on('end', async () => {
         try {
-          const inserted = await Product.insertMany(results);
+          // Filter out empty/invalid rows (e.g. trailing blank lines in CSV)
+          const validResults = results.filter(
+            (r) => r.name && r.name.trim() !== '' && r.price
+          );
+
+          if (validResults.length === 0) {
+            return res.status(400).json({ message: 'No valid products found in CSV' });
+          }
+
+          const inserted = await Product.insertMany(validResults);
           res.status(201).json({
             message: `${inserted.length} products imported successfully`,
             count: inserted.length,
