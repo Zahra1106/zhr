@@ -7,11 +7,27 @@ const orderSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    orderType: {
+      type: String,
+      enum: ['custom', 'ready-made'],
+      default: 'custom',
+    },
+    // For custom design orders
     design: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SavedDesign',
-      required: true,
     },
+    // For ready-made product orders (cart)
+    items: [
+      {
+        product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+        name: String,
+        image: String,
+        size: String,
+        quantity: { type: Number, default: 1 },
+        price: Number,
+      },
+    ],
     deliveryAddress: {
       label: String,
       addressLine: { type: String, required: true },
@@ -20,22 +36,22 @@ const orderSchema = new mongoose.Schema(
       postalCode: String,
       phone: { type: String, required: true },
     },
-   paymentMethod: {
-  type: String,
-  enum: ['COD', 'Advance Transfer'],
-  required: true,
-},
-advanceAmount: {
-  type: Number,
-  default: 0,
-},
-remainingAmount: {
-  type: Number,
-  default: 0,
-},
+    paymentMethod: {
+      type: String,
+      enum: ['COD', 'Advance Transfer'],
+      required: true,
+    },
     totalAmount: {
       type: Number,
       required: true,
+    },
+    advanceAmount: {
+      type: Number,
+      default: 0,
+    },
+    remainingAmount: {
+      type: Number,
+      default: 0,
     },
     status: {
       type: String,

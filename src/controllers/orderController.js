@@ -117,3 +117,43 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Place a ready-made products order (cart checkout)
+// @route   POST /api/orders/product-order
+exports.placeProductOrder = async (req, res) => {
+  try {
+    const { items, deliveryAddress, paymentMethod } = req.body;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: 'Cart is empty' });
+    }
+
+    const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    const estimatedDeliveryDate = new Date();
+    estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 7); // 7 days for ready-made
+
+    let advanceAmount = 0;
+    let remainingAmount = totalAmount;
+
+    if (paymentMethod === 'Advance Transfer') {
+      advanceAmount = Math.round(totalAmount * 0.5);
+      remainingAmount = totalAmount - advanceAmount;
+    }
+
+    const order = await Order.create({
+      user: req.user.id,
+      orderType: 'ready-made',
+      items,
+      deliveryAddress,
+      paymentMethod,
+      totalAmount,
+      advanceAmount,
+      remainingAmount,
+      estimatedDeliveryDate,
+    });
+
+    res.status(201).json(order);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
