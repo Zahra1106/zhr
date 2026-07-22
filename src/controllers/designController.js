@@ -133,3 +133,47 @@ exports.deleteDesign = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Update an existing saved design
+// @route   PUT /api/designs/:id
+exports.updateDesign = async (req, res) => {
+  try {
+    const {
+      gender, category, fabric, selectedColor, options,
+      fabricMeters, designName,
+    } = req.body;
+
+    const fabricData = await Fabric.findById(fabric);
+    if (!fabricData) return res.status(404).json({ message: 'Fabric not found' });
+
+    const meters = fabricMeters || 3;
+    const fabricCost = fabricData.pricePerMeter * meters;
+
+    let optionsCost = 0;
+    const optionValues = options ? Object.values(options).filter(Boolean) : [];
+    if (optionValues.length > 0) {
+      const opts = await DesignOption.find({ _id: { $in: optionValues } });
+      optionsCost = opts.reduce((sum, opt) => sum + (opt.extraCost || 0), 0);
+    }
+
+    const TAILORING_CHARGE = 1500;
+    const BRAND_CHARGE = 1000;
+    const DELIVERY_CHARGE = 300;
+    const estimatedPrice =
+      fabricCost + optionsCost + TAILORING_CHARGE + BRAND_CHARGE + DELIVERY_CHARGE;
+
+    const design = await SavedDesign.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
+      {
+        gender, category, fabric, selectedColor, options,
+        fabricMeters: meters, estimatedPrice, designName,
+      },
+      { new: true }
+    );
+
+    if (!design) return res.status(404).json({ message: 'Design not found' });
+
+    res.status(200).json(design);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
