@@ -119,6 +119,8 @@ exports.updateOrderStatus = async (req, res) => {
 };
 // @desc    Place a ready-made products order (cart checkout)
 // @route   POST /api/orders/product-order
+// @desc    Place a cart order (ready-made products and/or custom designs together)
+// @route   POST /api/orders/product-order
 exports.placeProductOrder = async (req, res) => {
   try {
     const { items, deliveryAddress, paymentMethod } = req.body;
@@ -127,10 +129,14 @@ exports.placeProductOrder = async (req, res) => {
       return res.status(400).json({ message: 'Cart is empty' });
     }
 
-    const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const totalAmount = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+
+    const hasProduct = items.some((i) => i.itemType === 'product');
+    const hasDesign = items.some((i) => i.itemType === 'design');
+    const orderType = hasProduct && hasDesign ? 'mixed' : hasDesign ? 'custom' : 'ready-made';
 
     const estimatedDeliveryDate = new Date();
-    estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 7); // 7 days for ready-made
+    estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + (hasDesign ? 14 : 7));
 
     let advanceAmount = 0;
     let remainingAmount = totalAmount;
@@ -142,7 +148,7 @@ exports.placeProductOrder = async (req, res) => {
 
     const order = await Order.create({
       user: req.user.id,
-      orderType: 'ready-made',
+      orderType,
       items,
       deliveryAddress,
       paymentMethod,

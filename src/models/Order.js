@@ -9,18 +9,20 @@ const orderSchema = new mongoose.Schema(
     },
     orderType: {
       type: String,
-      enum: ['custom', 'ready-made'],
+      enum: ['custom', 'ready-made', 'mixed'],
       default: 'custom',
     },
-    // For custom design orders
+    // Kept for backward compatibility with old single-design orders
     design: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SavedDesign',
     },
-    // For ready-made product orders (cart)
+    // Unified items array — can hold ready-made products AND custom designs together
     items: [
       {
+        itemType: { type: String, enum: ['product', 'design'], default: 'product' },
         product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+        design: { type: mongoose.Schema.Types.ObjectId, ref: 'SavedDesign' },
         name: String,
         image: String,
         size: String,
