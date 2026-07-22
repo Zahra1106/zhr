@@ -6,16 +6,17 @@ const { Readable } = require('stream');
 // @route   GET /api/products
 exports.getProducts = async (req, res) => {
   try {
-    const { gender, category, featured } = req.query;
+    const { gender, category, featured, discounted } = req.query;
     const filter = { isActive: true };
 
     if (gender) filter.gender = gender;
     if (category) filter.category = category;
     if (featured) filter.isFeatured = true;
+    if (discounted) filter.discountPercent = { $gt: 0 };
 
     const products = await Product.find(filter)
       .populate('category')
-      .sort({ createdAt: -1 });
+      .sort({ discountPercent: -1, createdAt: -1 });
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
