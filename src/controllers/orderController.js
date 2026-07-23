@@ -123,13 +123,15 @@ exports.updateOrderStatus = async (req, res) => {
 // @route   POST /api/orders/product-order
 exports.placeProductOrder = async (req, res) => {
   try {
-    const { items, deliveryAddress, paymentMethod } = req.body;
+    const { items, deliveryAddress, paymentMethod, couponCode, discountAmount } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'Cart is empty' });
     }
 
-    const totalAmount = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+    const subtotal = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+    const appliedDiscount = discountAmount || 0;
+    const totalAmount = Math.max(0, subtotal - appliedDiscount);
 
     const hasProduct = items.some((i) => i.itemType === 'product');
     const hasDesign = items.some((i) => i.itemType === 'design');
@@ -156,7 +158,18 @@ exports.placeProductOrder = async (req, res) => {
       advanceAmount,
       remainingAmount,
       estimatedDeliveryDate,
+      couponCode: couponCode || null,
+      discountAmount: appliedDiscount,
     });
+
+    // Increment coupon usage count if a coupon was used
+    if (couponCode) {
+      const Coupon = require('../models/Coupon');
+      await Coupon.findOneAndUpdate(
+        { code: couponCode.toUpperCase().trim() },
+        { $inc: { usedCount: 1 } }
+      );
+    }
 
     res.status(201).json(order);
   } catch (error) {

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 
+
 const app = express();
 
 app.use(cors());
@@ -26,5 +27,6 @@ app.use('/api/designs', require('./routes/designRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/coupons', require('./routes/couponRoutes'));
 
 module.exports = app;
