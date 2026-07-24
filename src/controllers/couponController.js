@@ -95,3 +95,24 @@ exports.validateCoupon = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Get the best active coupon to display to customers (public)
+// @route   GET /api/coupons/active
+exports.getActiveCoupon = async (req, res) => {
+  try {
+    const now = new Date();
+    const coupon = await Coupon.findOne({
+      isActive: true,
+      $or: [{ expiryDate: null }, { expiryDate: { $gte: now } }],
+    }).sort({ discountPercent: -1 });
+
+    if (!coupon) return res.status(200).json(null);
+
+    res.status(200).json({
+      code: coupon.code,
+      discountPercent: coupon.discountPercent,
+      minOrderAmount: coupon.minOrderAmount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

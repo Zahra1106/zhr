@@ -6,6 +6,7 @@ const {
   updateCoupon,
   deleteCoupon,
   validateCoupon,
+  getActiveCoupon,
 } = require('../controllers/couponController');
 
 router.get('/', getCoupons);
@@ -13,5 +14,6 @@ router.post('/', createCoupon);
 router.put('/:id', updateCoupon);
 router.delete('/:id', deleteCoupon);
 router.post('/validate', validateCoupon);
+router.get('/active', getActiveCoupon);
 
 module.exports = router;
