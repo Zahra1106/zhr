@@ -19,4 +19,5 @@ router.delete('/addresses/:addressId', protect, deleteAddress);
 router.post('/send-otp', sendOtp);
 router.post('/verify-otp-reset', verifyOtpAndReset);
 router.post('/google-login', googleLogin);
+router.post('/fcm-token', protect, saveFcmToken);
 module.exports = router;

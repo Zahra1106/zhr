@@ -273,3 +273,13 @@ exports.googleLogin = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Save/update FCM token for push notifications
+// @route   POST /api/auth/fcm-token
+exports.saveFcmToken = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.id, { fcmToken: req.body.fcmToken });
+    res.status(200).json({ message: 'Token saved' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

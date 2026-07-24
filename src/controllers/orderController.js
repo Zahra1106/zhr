@@ -1,5 +1,7 @@
 const Order = require('../models/Order');
 const SavedDesign = require('../models/SavedDesign');
+const { sendPushNotification } = require('../config/firebaseAdmin');
+const User = require('../models/users');
 
 // @desc    Place a new order
 // @route   POST /api/orders
@@ -112,6 +114,17 @@ exports.updateOrderStatus = async (req, res) => {
       { new: true }
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Send push notification to the customer
+    const user = await User.findById(order.user);
+    if (user?.fcmToken) {
+      await sendPushNotification(
+        user.fcmToken,
+        'Order Status Updated',
+        `Your order is now: ${status}`
+      );
+    }
+
     res.status(200).json(order);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
