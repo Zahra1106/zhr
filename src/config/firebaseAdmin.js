@@ -1,27 +1,32 @@
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 
 let initialized = false;
+let initFailed = false;
 
 function initFirebaseAdmin() {
-  if (initialized) return;
+  if (initialized || initFailed) return;
 
   try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    if (getApps().length === 0) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      initializeApp({
+        credential: cert(serviceAccount),
+      });
+    }
     initialized = true;
   } catch (error) {
     console.error('Firebase Admin init error:', error.message);
+    initFailed = true;
   }
 }
 
 async function sendPushNotification(fcmToken, title, body) {
   initFirebaseAdmin();
-  if (!fcmToken) return;
+  if (!initialized || !fcmToken) return;
 
   try {
-    await admin.messaging().send({
+    await getMessaging().send({
       token: fcmToken,
       notification: { title, body },
       android: {
