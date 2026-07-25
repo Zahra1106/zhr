@@ -4,7 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const {
   signup, login, getMe, updateMeasurements,
   toggleWishlist, getWishlist, addAddress, getAddresses, deleteAddress,
-  sendOtp, verifyOtpAndReset, googleLogin,
+  sendOtp, verifyOtpAndReset, googleLogin, saveFcmToken,
 } = require('../controllers/authController');
 
 router.post('/signup', signup);
