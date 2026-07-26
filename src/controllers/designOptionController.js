@@ -53,3 +53,60 @@ exports.deleteDesignOption = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+const csv = require('csv-parser');
+const { Readable } = require('stream');
+
+// @desc    Bulk import design options from CSV
+// @route   POST /api/design-options/bulk-import
+exports.bulkImportDesignOptions = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No CSV file uploaded' });
+    }
+
+    const results = [];
+    const stream = Readable.from(req.file.buffer.toString());
+
+    stream
+      .pipe(csv())
+      .on('data', (row) => {
+        const suitableFor = row.suitableFor
+          ? row.suitableFor.split('|').map((g) => g.trim()).filter(Boolean)
+          : ['women'];
+
+        results.push({
+          category: row.category,
+          name: row.name,
+          image: row.image || '',
+          extraCost: Number(row.extraCost) || 0,
+          suitableFor,
+          displayOrder: Number(row.displayOrder) || 0,
+        });
+      })
+      .on('end', async () => {
+        try {
+          const validResults = results.filter(
+            (r) => r.name && r.name.trim() !== '' && r.category
+          );
+
+          if (validResults.length === 0) {
+            return res.status(400).json({ message: 'No valid design options found in CSV' });
+          }
+
+          const DesignOption = require('../models/DesignOption');
+          const inserted = await DesignOption.insertMany(validResults);
+          res.status(201).json({
+            message: `${inserted.length} design options imported successfully`,
+            count: inserted.length,
+          });
+        } catch (err) {
+          res.status(500).json({ message: 'Error saving design options', error: err.message });
+        }
+      })
+      .on('error', (err) => {
+        res.status(500).json({ message: 'Error parsing CSV', error: err.message });
+      });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
