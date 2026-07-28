@@ -3,14 +3,14 @@ const mongoose = require('mongoose');
 const designOptionSchema = new mongoose.Schema(
   {
     category: {
-      type: String,
-      enum: [
-        'neck', 'sleeve', 'shirtLength', 'trouser',
-        'dupatta', 'border', 'button', 'embroidery',
-        'pocketStyle', 'backStyle', 'cuffStyle', 'sideCutStyle',
-      ],
-      required: true,
-    },
+  type: String,
+  enum: [
+    'neck', 'sleeve', 'shirtLength', 'trouser',
+    'dupatta', 'border', 'button', 'embroidery', 'print',
+    'pocketStyle', 'backStyle', 'cuffStyle', 'sideCutStyle',
+  ],
+  required: true,
+},
     name: {
       type: String,
       required: true,
