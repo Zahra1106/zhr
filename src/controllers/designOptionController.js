@@ -5,21 +5,36 @@ const DesignOption = require('../models/DesignOption');
 exports.getDesignOptions = async (req, res) => {
   try {
     const { category, gender, categoryId } = req.query;
-    const filter = { isActive: true };
+    const baseFilter = { isActive: true };
 
-    if (category) filter.category = category;
-    if (gender) filter.suitableFor = gender;
+    if (category) baseFilter.category = category;
+    if (gender) baseFilter.suitableFor = gender;
 
-    // If a clothing category (e.g. Bridal Wear) is specified, show options
-    // that either belong specifically to it OR are generic (apply to all).
     if (categoryId) {
-      filter.$or = [
-        { appliesToCategory: categoryId },
-        { appliesToCategory: null },
-      ];
+      // First check if there are any options specifically tagged for this
+      // clothing category (e.g. Bridal Wear). If so, ONLY those are shown —
+      // generic options are hidden, so Bridal never sees plain/basic options.
+      const specificOptions = await DesignOption.find({
+        ...baseFilter,
+        appliesToCategory: categoryId,
+      }).sort({ displayOrder: 1 });
+
+      if (specificOptions.length > 0) {
+        return res.status(200).json(specificOptions);
+      }
+
+      // No category-specific options exist for this design category —
+      // fall back to generic (appliesToCategory: null) ones.
+      const genericOptions = await DesignOption.find({
+        ...baseFilter,
+        appliesToCategory: null,
+      }).sort({ displayOrder: 1 });
+
+      return res.status(200).json(genericOptions);
     }
 
-    const options = await DesignOption.find(filter).sort({ displayOrder: 1 });
+    // No clothing category specified — just return everything matching filters
+    const options = await DesignOption.find(baseFilter).sort({ displayOrder: 1 });
     res.status(200).json(options);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
