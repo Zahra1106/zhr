@@ -1,14 +1,23 @@
 const DesignOption = require('../models/DesignOption');
 
-// @desc    Get design options (filter by category, e.g. ?category=neck)
+// @desc    Get design options (filter by category, gender, and clothing category)
 // @route   GET /api/design-options
 exports.getDesignOptions = async (req, res) => {
   try {
-    const { category, gender } = req.query;
+    const { category, gender, categoryId } = req.query;
     const filter = { isActive: true };
 
     if (category) filter.category = category;
     if (gender) filter.suitableFor = gender;
+
+    // If a clothing category (e.g. Bridal Wear) is specified, show options
+    // that either belong specifically to it OR are generic (apply to all).
+    if (categoryId) {
+      filter.$or = [
+        { appliesToCategory: categoryId },
+        { appliesToCategory: null },
+      ];
+    }
 
     const options = await DesignOption.find(filter).sort({ displayOrder: 1 });
     res.status(200).json(options);

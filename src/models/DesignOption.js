@@ -30,6 +30,11 @@ const designOptionSchema = new mongoose.Schema(
         enum: ['women', 'men', 'kids'],
       },
     ],
+    appliesToCategory: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        default: null, // null/empty = generic, shows for ALL clothing categories
+    },
     isActive: {
       type: Boolean,
       default: true,
