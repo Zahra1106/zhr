@@ -134,3 +134,74 @@ exports.bulkImportDesignOptions = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    One-time cleanup: fix bridal-named options that were imported
+//          under generic categories, and remove duplicate entries.
+// @route   POST /api/design-options/fix-bridal-categories
+exports.fixBridalCategories = async (req, res) => {
+  try {
+    const categoryMap = {
+      neck: 'bridalNeck',
+      sleeve: 'bridalSleeve',
+      shirtLength: 'bridalShirtLength',
+      trouser: 'bridalTrouser',
+      dupatta: 'bridalDupatta',
+      embroidery: 'bridalEmbroidery',
+      border: 'bridalBorder',
+      print: 'bridalPrint',
+    };
+
+    // Names that should belong to Bridal (only these get moved/re-tagged)
+    const bridalNamePatterns = [
+      'bridal', 'sweetheart', 'sabyasachi', 'zardozi', 'kundan', 'dabka',
+      'nagh work', 'tilla', 'gota', 'zari', 'gharara', 'sharara', 'farshi',
+      'dhoti pant', 'paincha', 'kalamkari',
+    ];
+
+    const isBridalName = (name) => {
+      const lower = name.toLowerCase();
+      return bridalNamePatterns.some((p) => lower.includes(p));
+    };
+
+    let recategorized = 0;
+    let duplicatesRemoved = 0;
+
+    for (const [oldCat, newCat] of Object.entries(categoryMap)) {
+      const docs = await DesignOption.find({ category: oldCat });
+
+      for (const doc of docs) {
+        if (isBridalName(doc.name)) {
+          doc.category = newCat;
+          await doc.save();
+          recategorized++;
+        }
+      }
+    }
+
+    // Remove duplicates: same name + same category, keep the oldest one
+    const allDocs = await DesignOption.find().sort({ createdAt: 1 });
+    const seen = new Map();
+    const toDelete = [];
+
+    for (const doc of allDocs) {
+      const key = `${doc.category}::${doc.name}`;
+      if (seen.has(key)) {
+        toDelete.push(doc._id);
+      } else {
+        seen.set(key, doc._id);
+      }
+    }
+
+    if (toDelete.length > 0) {
+      await DesignOption.deleteMany({ _id: { $in: toDelete } });
+      duplicatesRemoved = toDelete.length;
+    }
+
+    res.status(200).json({
+      message: `Cleanup complete: ${recategorized} options recategorized to bridal, ${duplicatesRemoved} duplicates removed`,
+      recategorized,
+      duplicatesRemoved,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
