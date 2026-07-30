@@ -9,11 +9,13 @@ const {
   updateDesignOption,
   deleteDesignOption,
   bulkImportDesignOptions,
+  bulkDeleteDesignOptions,
   removeDuplicateDesignOptions,
 } = require('../controllers/designOptionController');
 
 router.get('/', getDesignOptions);
 router.post('/bulk-import', upload.single('file'), bulkImportDesignOptions);
+router.delete('/bulk-delete', bulkDeleteDesignOptions);
 router.post('/', createDesignOption);
 router.put('/:id', updateDesignOption);
 router.delete('/:id', deleteDesignOption);

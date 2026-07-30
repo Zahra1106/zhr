@@ -141,6 +141,43 @@ exports.bulkImportDesignOptions = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Bulk delete design options matching a filter (Admin) — used to
+//          wipe out duplicates/junk before a fresh CSV import. Requires at
+//          least one of category / categoryId to avoid wiping everything
+//          by accident.
+// @route   DELETE /api/design-options/bulk-delete
+exports.bulkDeleteDesignOptions = async (req, res) => {
+  try {
+    const { category, categoryId, includeUntagged } = req.query;
+
+    if (!category && !categoryId) {
+      return res.status(400).json({
+        message: 'Refusing to delete: provide at least category or categoryId to filter by.',
+      });
+    }
+
+    const filter = {};
+    if (category) filter.category = category;
+
+    if (categoryId) {
+      // includeUntagged=true also sweeps up legacy rows saved before
+      // appliesToCategory was set (e.g. old bulk imports) so a full
+      // cleanup + re-import doesn't leave orphaned duplicates behind.
+      filter.appliesToCategory = includeUntagged === 'true'
+        ? { $in: [categoryId, null] }
+        : categoryId;
+    }
+
+    const result = await DesignOption.deleteMany(filter);
+    res.status(200).json({
+      message: `${result.deletedCount} design options deleted`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    One-time cleanup: remove duplicate design options
 //          (same name + same category), keeping the oldest one.
 // @route   POST /api/design-options/remove-duplicates
