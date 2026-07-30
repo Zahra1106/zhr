@@ -88,6 +88,12 @@ exports.bulkImportDesignOptions = async (req, res) => {
       return res.status(400).json({ message: 'No CSV file uploaded' });
     }
 
+    // Optional: pass categoryId in the form-data alongside the file to tag
+    // every imported row as specific to that clothing category (e.g. the
+    // "Bridal Wear" Category's _id). Leave it empty to import as generic
+    // options that show for all clothing categories.
+    const { categoryId } = req.body;
+
     const results = [];
     const stream = Readable.from(req.file.buffer.toString());
 
@@ -105,6 +111,7 @@ exports.bulkImportDesignOptions = async (req, res) => {
           extraCost: Number(row.extraCost) || 0,
           suitableFor,
           displayOrder: Number(row.displayOrder) || 0,
+          appliesToCategory: categoryId || null,
         });
       })
       .on('end', async () => {
@@ -134,50 +141,11 @@ exports.bulkImportDesignOptions = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-// @desc    One-time cleanup: fix bridal-named options that were imported
-//          under generic categories, and remove duplicate entries.
-// @route   POST /api/design-options/fix-bridal-categories
-exports.fixBridalCategories = async (req, res) => {
+// @desc    One-time cleanup: remove duplicate design options
+//          (same name + same category), keeping the oldest one.
+// @route   POST /api/design-options/remove-duplicates
+exports.removeDuplicateDesignOptions = async (req, res) => {
   try {
-    const categoryMap = {
-      neck: 'bridalNeck',
-      sleeve: 'bridalSleeve',
-      shirtLength: 'bridalShirtLength',
-      trouser: 'bridalTrouser',
-      dupatta: 'bridalDupatta',
-      embroidery: 'bridalEmbroidery',
-      border: 'bridalBorder',
-      print: 'bridalPrint',
-    };
-
-    // Names that should belong to Bridal (only these get moved/re-tagged)
-    const bridalNamePatterns = [
-      'bridal', 'sweetheart', 'sabyasachi', 'zardozi', 'kundan', 'dabka',
-      'nagh work', 'tilla', 'gota', 'zari', 'gharara', 'sharara', 'farshi',
-      'dhoti pant', 'paincha', 'kalamkari',
-    ];
-
-    const isBridalName = (name) => {
-      const lower = name.toLowerCase();
-      return bridalNamePatterns.some((p) => lower.includes(p));
-    };
-
-    let recategorized = 0;
-    let duplicatesRemoved = 0;
-
-    for (const [oldCat, newCat] of Object.entries(categoryMap)) {
-      const docs = await DesignOption.find({ category: oldCat });
-
-      for (const doc of docs) {
-        if (isBridalName(doc.name)) {
-          doc.category = newCat;
-          await doc.save();
-          recategorized++;
-        }
-      }
-    }
-
-    // Remove duplicates: same name + same category, keep the oldest one
     const allDocs = await DesignOption.find().sort({ createdAt: 1 });
     const seen = new Map();
     const toDelete = [];
@@ -193,13 +161,11 @@ exports.fixBridalCategories = async (req, res) => {
 
     if (toDelete.length > 0) {
       await DesignOption.deleteMany({ _id: { $in: toDelete } });
-      duplicatesRemoved = toDelete.length;
     }
 
     res.status(200).json({
-      message: `Cleanup complete: ${recategorized} options recategorized to bridal, ${duplicatesRemoved} duplicates removed`,
-      recategorized,
-      duplicatesRemoved,
+      message: `Cleanup complete: ${toDelete.length} duplicates removed`,
+      duplicatesRemoved: toDelete.length,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });

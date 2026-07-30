@@ -9,7 +9,7 @@ const {
   updateDesignOption,
   deleteDesignOption,
   bulkImportDesignOptions,
-  fixBridalCategories,
+  removeDuplicateDesignOptions,
 } = require('../controllers/designOptionController');
 
 router.get('/', getDesignOptions);
@@ -17,6 +17,6 @@ router.post('/bulk-import', upload.single('file'), bulkImportDesignOptions);
 router.post('/', createDesignOption);
 router.put('/:id', updateDesignOption);
 router.delete('/:id', deleteDesignOption);
-// router.post('/fix-bridal-categories', fixBridalCategories);
+router.post('/remove-duplicates', removeDuplicateDesignOptions);
 
 module.exports = router;
