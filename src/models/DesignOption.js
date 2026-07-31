@@ -7,7 +7,7 @@ const designOptionSchema = new mongoose.Schema(
   enum: [
     'neck', 'sleeve', 'shirtLength', 'trouser',
     'dupatta', 'border', 'button', 'embroidery', 'print',
-    'pocketStyle', 'backStyle', 'cuffStyle', 'sideCutStyle',
+    'pocketStyle', 'backStyle', 'cuffStyle', 'sideCutStyle', 'style',
   ],
   required: true,
 },
