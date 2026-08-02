@@ -73,14 +73,27 @@ exports.getOrderById = async (req, res) => {
 
 // @desc    Cancel an order
 // @route   PUT /api/orders/:id/cancel
+// @desc    Cancel an order (only allowed before tailoring starts)
+// @route   PUT /api/orders/:id/cancel
 exports.cancelOrder = async (req, res) => {
   try {
-    const order = await Order.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
-      { status: 'Cancelled' },
-      { new: true }
-    );
+    const order = await Order.findOne({ _id: req.params.id, user: req.user.id });
+
     if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Cancellation is only allowed while the order is still Pending or
+    // Confirmed — once tailoring begins (or later), it can no longer be
+    // cancelled since work/materials are already committed.
+    const cancellableStatuses = ['Pending', 'Confirmed'];
+    if (!cancellableStatuses.includes(order.status)) {
+      return res.status(400).json({
+        message: `This order can no longer be cancelled (current status: ${order.status}).`,
+      });
+    }
+
+    order.status = 'Cancelled';
+    await order.save();
+
     res.status(200).json(order);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
