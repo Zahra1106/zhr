@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const SavedDesign = require('../models/SavedDesign');
+const Review = require('../models/Review');
 const { sendPushNotification } = require('../config/firebaseAdmin');
 const User = require('../models/users');
 
@@ -56,6 +57,60 @@ exports.getMyOrders = async (req, res) => {
   }
 };
 
+// @desc    Get delivered orders that still have at least one un-reviewed item
+// @route   GET /api/orders/pending-review
+exports.getPendingReviewOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user.id, status: 'Delivered' })
+      .populate({ path: 'design', select: 'designName' })
+      .sort({ createdAt: -1 });
+
+    const pending = [];
+
+    for (const order of orders) {
+      const reviewableItems = [];
+
+      if (order.items && order.items.length > 0) {
+        order.items.forEach((item) => {
+          const itemId = item.itemType === 'product' ? item.product : item.design;
+          if (itemId) {
+            reviewableItems.push({ itemType: item.itemType, itemId: itemId.toString() });
+          }
+        });
+      } else if (order.design) {
+        reviewableItems.push({ itemType: 'design', itemId: order.design._id.toString() });
+      }
+
+      if (reviewableItems.length === 0) continue;
+
+      const existingReviews = await Review.find({
+        user: req.user.id,
+        $or: reviewableItems.map((r) =>
+          r.itemType === 'product'
+            ? { itemType: 'product', product: r.itemId }
+            : { itemType: 'design', design: r.itemId }
+        ),
+      });
+
+      const reviewedKeys = new Set(
+        existingReviews.map((r) => `${r.itemType}:${(r.product || r.design).toString()}`)
+      );
+
+      const hasUnreviewed = reviewableItems.some(
+        (r) => !reviewedKeys.has(`${r.itemType}:${r.itemId}`)
+      );
+
+      if (hasUnreviewed) {
+        pending.push({ orderId: order._id.toString(), orderType: order.orderType });
+      }
+    }
+
+    res.status(200).json(pending);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Get single order by ID
 // @route   GET /api/orders/:id
 exports.getOrderById = async (req, res) => {
@@ -71,10 +126,6 @@ exports.getOrderById = async (req, res) => {
   }
 };
 
-// @desc    Cancel an order
-// @route   PUT /api/orders/:id/cancel
-// @desc    Cancel an order (only allowed before tailoring starts)
-// @route   PUT /api/orders/:id/cancel
 // @desc    Cancel an order (only allowed before tailoring starts)
 // @route   PUT /api/orders/:id/cancel
 exports.cancelOrder = async (req, res) => {
@@ -110,6 +161,7 @@ exports.cancelOrder = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+
 // @desc    Get all orders (Admin only)
 // @route   GET /api/orders
 exports.getAllOrders = async (req, res) => {
@@ -142,11 +194,23 @@ exports.updateOrderStatus = async (req, res) => {
     // Send push notification to the customer
     const user = await User.findById(order.user);
     if (user?.fcmToken) {
-      await sendPushNotification(
-        user.fcmToken,
-        'Order Status Updated',
-        `Your order is now: ${status}`
-      );
+      if (status === 'Delivered') {
+        // Special "ask for a review" notification, tappable straight to
+        // the order's Track Order screen where the review section lives.
+        await sendPushNotification(
+          user.fcmToken,
+          'How was your order?',
+          'Your order has been delivered — please give us a review!',
+          { type: 'review_prompt', orderId: order._id.toString() }
+        );
+      } else {
+        await sendPushNotification(
+          user.fcmToken,
+          'Order Status Updated',
+          `Your order is now: ${status}`,
+          { type: 'order_status', orderId: order._id.toString() }
+        );
+      }
     }
 
     res.status(200).json(order);
@@ -154,8 +218,7 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-// @desc    Place a ready-made products order (cart checkout)
-// @route   POST /api/orders/product-order
+
 // @desc    Place a cart order (ready-made products and/or custom designs together)
 // @route   POST /api/orders/product-order
 exports.placeProductOrder = async (req, res) => {
