@@ -75,11 +75,22 @@ exports.getOrderById = async (req, res) => {
 // @route   PUT /api/orders/:id/cancel
 // @desc    Cancel an order (only allowed before tailoring starts)
 // @route   PUT /api/orders/:id/cancel
+// @desc    Cancel an order (only allowed before tailoring starts)
+// @route   PUT /api/orders/:id/cancel
 exports.cancelOrder = async (req, res) => {
   try {
     const order = await Order.findOne({ _id: req.params.id, user: req.user.id });
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Advance Transfer (JazzCash/Easypaisa) orders can't be self-cancelled —
+    // the advance payment has already been transferred, so a manual refund
+    // process is required. Customer must contact support instead.
+    if (order.paymentMethod === 'Advance Transfer') {
+      return res.status(400).json({
+        message: 'This order was paid via JazzCash (Advance Transfer) and cannot be cancelled directly. Please contact support for a refund.',
+      });
+    }
 
     // Cancellation is only allowed while the order is still Pending or
     // Confirmed — once tailoring begins (or later), it can no longer be

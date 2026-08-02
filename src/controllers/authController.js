@@ -5,12 +5,11 @@ const Otp = require('../models/Otp');
 const { sendOtpEmail } = require('../config/emailService');
 
 // Generate JWT Token
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+const generateToken = (userId, isAdmin) => {
+  return jwt.sign({ id: userId, isAdmin }, process.env.JWT_SECRET, {
     expiresIn: '30d',
   });
 };
-
 // @desc    Register new user
 // @route   POST /api/auth/signup
 exports.signup = async (req, res) => {
@@ -41,7 +40,7 @@ exports.signup = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      token: generateToken(user._id),
+      token: generateToken(user._id, user.isAdmin),
     });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
@@ -73,7 +72,7 @@ exports.login = async (req, res) => {
   name: user.name,
   email: user.email,
   isAdmin: user.isAdmin,
-  token: generateToken(user._id),
+  token: generateToken(user._id, user.isAdmin),
 });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
@@ -267,7 +266,7 @@ exports.googleLogin = async (req, res) => {
       name: user.name,
       email: user.email,
       isAdmin: user.isAdmin,
-      token: generateToken(user._id),
+      token: generateToken(user._id, user.isAdmin),
     });
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });

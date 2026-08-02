@@ -2,14 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 
-
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Ensure DB connects before every request (serverless-safe)
 app.use(async (req, res, next) => {
   await connectDB();
   next();
@@ -28,5 +26,6 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/coupons', require('./routes/couponRoutes'));
+app.use('/api/chat', require('./routes/chatRoutes'));   // <-- ye naya add karein
 
 module.exports = app;
