@@ -20,5 +20,6 @@ router.put('/:id/status', protect, updateOrderStatus);
 router.get('/:id', protect, getOrderById);
 router.put('/:id/cancel', protect, cancelOrder);
 router.post('/product-order', protect, placeProductOrder);
+router.get('/revenue-analytics', protect, getRevenueAnalytics);
 
 module.exports = router;

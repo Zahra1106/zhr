@@ -276,3 +276,44 @@ exports.placeProductOrder = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+// @desc    Get daily revenue for the last 7 or 30 days (Admin only)
+// @route   GET /api/orders/revenue-analytics?days=7
+exports.getRevenueAnalytics = async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const days = parseInt(req.query.days) === 30 ? 30 : 7;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (days - 1));
+    startDate.setHours(0, 0, 0, 0);
+
+    const orders = await Order.find({
+      status: { $ne: 'Cancelled' },
+      createdAt: { $gte: startDate },
+    }).select('totalAmount createdAt');
+
+    // Pre-fill every day in the range with 0 so the chart has no gaps
+    // even on days with zero orders.
+    const dayMap = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      dayMap[key] = 0;
+    }
+
+    orders.forEach((order) => {
+      const key = order.createdAt.toISOString().split('T')[0];
+      if (dayMap[key] !== undefined) {
+        dayMap[key] += order.totalAmount;
+      }
+    });
+
+    const result = Object.entries(dayMap).map(([date, revenue]) => ({ date, revenue }));
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
