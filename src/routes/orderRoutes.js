@@ -9,6 +9,7 @@ const {
   updateOrderStatus,
   placeProductOrder,
   getPendingReviewOrders,
+  getRevenueAnalytics,
 } = require('../controllers/orderController');
 const { protect } = require('../middleware/authMiddleware');
 
