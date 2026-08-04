@@ -210,15 +210,17 @@ exports.getRevenueAnalytics = async (req, res) => {
     }
 
     orders.forEach((order) => {
+      if (!order.createdAt) return;
       const key = order.createdAt.toISOString().split('T')[0];
       if (dayMap[key] !== undefined) {
-        dayMap[key] += order.totalAmount;
+        dayMap[key] += order.totalAmount || 0;
       }
     });
 
     const result = Object.entries(dayMap).map(([date, revenue]) => ({ date, revenue }));
     res.status(200).json(result);
   } catch (error) {
+    console.error('getRevenueAnalytics error:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
