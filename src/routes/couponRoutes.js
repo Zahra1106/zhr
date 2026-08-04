@@ -13,7 +13,7 @@ router.get('/', getCoupons);
 router.post('/', createCoupon);
 router.put('/:id', updateCoupon);
 router.delete('/:id', deleteCoupon);
-router.post('/validate', validateCoupon);
+router.post('/validate', protect, validateCoupon);
 router.get('/active', getActiveCoupon);
 
 module.exports = router;

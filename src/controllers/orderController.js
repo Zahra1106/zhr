@@ -1,27 +1,85 @@
+const crypto = require('crypto');
 const Order = require('../models/Order');
 const SavedDesign = require('../models/SavedDesign');
 const Review = require('../models/Review');
+const Coupon = require('../models/Coupon');
 const { sendPushNotification } = require('../config/firebaseAdmin');
 const User = require('../models/users');
+
+// Automatically issues a one-time, exclusive loyalty coupon to a customer
+// once they cross either threshold: 5+ delivered orders, or Rs. 20,000+
+// total spent (on delivered orders). Skips silently if they already have
+// an active personal coupon, so this never double-issues.
+async function generateLoyaltyCouponIfEligible(userId) {
+  const existing = await Coupon.findOne({ user: userId, isActive: true });
+  if (existing) return;
+
+  const deliveredOrders = await Order.find({ user: userId, status: 'Delivered' });
+  const totalOrders = deliveredOrders.length;
+  const totalSpent = deliveredOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+  const isEligible = totalOrders >= 5 || totalSpent >= 20000;
+  if (!isEligible) return;
+
+  const code = `LOYAL${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const expiryDate = new Date();
+  expiryDate.setDate(expiryDate.getDate() + 30);
+
+  await Coupon.create({
+    code,
+    discountPercent: 15,
+    minOrderAmount: 0,
+    maxDiscountAmount: 2000,
+    expiryDate,
+    isActive: true,
+    usageLimit: 1,
+    user: userId,
+  });
+}
+
 
 // @desc    Place a new order
 // @route   POST /api/orders
 exports.placeOrder = async (req, res) => {
   try {
-    const { designId, deliveryAddress, paymentMethod } = req.body;
+    const {
+      designId,
+      deliveryAddress,
+      paymentMethod,
+      couponCode,
+      discountAmount,
+      pointsToRedeem,
+    } = req.body;
 
     const design = await SavedDesign.findById(designId);
     if (!design) return res.status(404).json({ message: 'Design not found' });
+
+    const subtotal = design.estimatedPrice;
+    const couponDiscount = discountAmount || 0;
+
+    // Loyalty points redemption — 1 point = Rs. 1 off, capped so it can
+    // never exceed the user's balance or push the order below zero.
+    let pointsRedeemed = 0;
+    if (pointsToRedeem && pointsToRedeem > 0) {
+      const user = await User.findById(req.user.id);
+      const maxRedeemable = Math.min(
+        user.loyaltyPoints || 0,
+        Math.max(0, subtotal - couponDiscount)
+      );
+      pointsRedeemed = Math.min(pointsToRedeem, maxRedeemable);
+    }
+
+    const finalAmount = Math.max(0, subtotal - couponDiscount - pointsRedeemed);
 
     const estimatedDeliveryDate = new Date();
     estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 14);
 
     let advanceAmount = 0;
-    let remainingAmount = design.estimatedPrice;
+    let remainingAmount = finalAmount;
 
     if (paymentMethod === 'Advance Transfer') {
-      advanceAmount = Math.round(design.estimatedPrice * 0.5);
-      remainingAmount = design.estimatedPrice - advanceAmount;
+      advanceAmount = Math.round(finalAmount * 0.5);
+      remainingAmount = finalAmount - advanceAmount;
     }
 
     const order = await Order.create({
@@ -29,11 +87,25 @@ exports.placeOrder = async (req, res) => {
       design: designId,
       deliveryAddress,
       paymentMethod,
-      totalAmount: design.estimatedPrice,
+      totalAmount: finalAmount,
       advanceAmount,
       remainingAmount,
       estimatedDeliveryDate,
+      couponCode: couponCode || null,
+      discountAmount: couponDiscount,
+      pointsRedeemed,
     });
+
+    if (pointsRedeemed > 0) {
+      await User.findByIdAndUpdate(req.user.id, { $inc: { loyaltyPoints: -pointsRedeemed } });
+    }
+
+    if (couponCode) {
+      await Coupon.findOneAndUpdate(
+        { code: couponCode.toUpperCase().trim() },
+        { $inc: { usedCount: 1 } }
+      );
+    }
 
     res.status(201).json(order);
   } catch (error) {
@@ -111,6 +183,46 @@ exports.getPendingReviewOrders = async (req, res) => {
   }
 };
 
+// @desc    Get daily revenue for the last 7 or 30 days (Admin only)
+// @route   GET /api/orders/revenue-analytics?days=7
+exports.getRevenueAnalytics = async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const days = parseInt(req.query.days) === 30 ? 30 : 7;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (days - 1));
+    startDate.setHours(0, 0, 0, 0);
+
+    const orders = await Order.find({
+      status: { $ne: 'Cancelled' },
+      createdAt: { $gte: startDate },
+    }).select('totalAmount createdAt');
+
+    const dayMap = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      dayMap[key] = 0;
+    }
+
+    orders.forEach((order) => {
+      const key = order.createdAt.toISOString().split('T')[0];
+      if (dayMap[key] !== undefined) {
+        dayMap[key] += order.totalAmount;
+      }
+    });
+
+    const result = Object.entries(dayMap).map(([date, revenue]) => ({ date, revenue }));
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Get single order by ID
 // @route   GET /api/orders/:id
 exports.getOrderById = async (req, res) => {
@@ -134,18 +246,12 @@ exports.cancelOrder = async (req, res) => {
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Advance Transfer (JazzCash/Easypaisa) orders can't be self-cancelled —
-    // the advance payment has already been transferred, so a manual refund
-    // process is required. Customer must contact support instead.
     if (order.paymentMethod === 'Advance Transfer') {
       return res.status(400).json({
         message: 'This order was paid via JazzCash (Advance Transfer) and cannot be cancelled directly. Please contact support for a refund.',
       });
     }
 
-    // Cancellation is only allowed while the order is still Pending or
-    // Confirmed — once tailoring begins (or later), it can no longer be
-    // cancelled since work/materials are already committed.
     const cancellableStatuses = ['Pending', 'Confirmed'];
     if (!cancellableStatuses.includes(order.status)) {
       return res.status(400).json({
@@ -184,19 +290,28 @@ exports.getAllOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
+    const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Send push notification to the customer
+    order.status = status;
+
+    // Award loyalty points the first time an order reaches "Delivered" —
+    // 1 point per Rs. 100 spent. Guarded by pointsAwarded so this can never
+    // double-award if the status is saved as "Delivered" more than once.
+    if (status === 'Delivered' && !order.pointsAwarded) {
+      const pointsEarned = Math.floor(order.totalAmount / 100);
+      order.pointsAwarded = true;
+      order.pointsEarned = pointsEarned;
+
+      await User.findByIdAndUpdate(order.user, { $inc: { loyaltyPoints: pointsEarned } });
+      await generateLoyaltyCouponIfEligible(order.user);
+    }
+
+    await order.save();
+
     const user = await User.findById(order.user);
     if (user?.fcmToken) {
       if (status === 'Delivered') {
-        // Special "ask for a review" notification, tappable straight to
-        // the order's Track Order screen where the review section lives.
         await sendPushNotification(
           user.fcmToken,
           'How was your order?',
@@ -223,15 +338,35 @@ exports.updateOrderStatus = async (req, res) => {
 // @route   POST /api/orders/product-order
 exports.placeProductOrder = async (req, res) => {
   try {
-    const { items, deliveryAddress, paymentMethod, couponCode, discountAmount } = req.body;
+    const {
+      items,
+      deliveryAddress,
+      paymentMethod,
+      couponCode,
+      discountAmount,
+      pointsToRedeem,
+    } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'Cart is empty' });
     }
 
     const subtotal = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-    const appliedDiscount = discountAmount || 0;
-    const totalAmount = Math.max(0, subtotal - appliedDiscount);
+    const couponDiscount = discountAmount || 0;
+
+    // Loyalty points redemption — 1 point = Rs. 1 off, capped so it can
+    // never exceed the user's balance or push the order below zero.
+    let pointsRedeemed = 0;
+    if (pointsToRedeem && pointsToRedeem > 0) {
+      const user = await User.findById(req.user.id);
+      const maxRedeemable = Math.min(
+        user.loyaltyPoints || 0,
+        Math.max(0, subtotal - couponDiscount)
+      );
+      pointsRedeemed = Math.min(pointsToRedeem, maxRedeemable);
+    }
+
+    const totalAmount = Math.max(0, subtotal - couponDiscount - pointsRedeemed);
 
     const hasProduct = items.some((i) => i.itemType === 'product');
     const hasDesign = items.some((i) => i.itemType === 'design');
@@ -259,12 +394,15 @@ exports.placeProductOrder = async (req, res) => {
       remainingAmount,
       estimatedDeliveryDate,
       couponCode: couponCode || null,
-      discountAmount: appliedDiscount,
+      discountAmount: couponDiscount,
+      pointsRedeemed,
     });
 
-    // Increment coupon usage count if a coupon was used
+    if (pointsRedeemed > 0) {
+      await User.findByIdAndUpdate(req.user.id, { $inc: { loyaltyPoints: -pointsRedeemed } });
+    }
+
     if (couponCode) {
-      const Coupon = require('../models/Coupon');
       await Coupon.findOneAndUpdate(
         { code: couponCode.toUpperCase().trim() },
         { $inc: { usedCount: 1 } }
@@ -272,47 +410,6 @@ exports.placeProductOrder = async (req, res) => {
     }
 
     res.status(201).json(order);
-  } catch (error) {
-    res.status(500).json({ message: 'Server Error', error: error.message });
-  }
-};
-// @desc    Get daily revenue for the last 7 or 30 days (Admin only)
-// @route   GET /api/orders/revenue-analytics?days=7
-exports.getRevenueAnalytics = async (req, res) => {
-  try {
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-
-    const days = parseInt(req.query.days) === 30 ? 30 : 7;
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days - 1));
-    startDate.setHours(0, 0, 0, 0);
-
-    const orders = await Order.find({
-      status: { $ne: 'Cancelled' },
-      createdAt: { $gte: startDate },
-    }).select('totalAmount createdAt');
-
-    // Pre-fill every day in the range with 0 so the chart has no gaps
-    // even on days with zero orders.
-    const dayMap = {};
-    for (let i = 0; i < days; i++) {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + i);
-      const key = d.toISOString().split('T')[0];
-      dayMap[key] = 0;
-    }
-
-    orders.forEach((order) => {
-      const key = order.createdAt.toISOString().split('T')[0];
-      if (dayMap[key] !== undefined) {
-        dayMap[key] += order.totalAmount;
-      }
-    });
-
-    const result = Object.entries(dayMap).map(([date, revenue]) => ({ date, revenue }));
-    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }

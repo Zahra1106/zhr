@@ -28,5 +28,6 @@ app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/coupons', require('./routes/couponRoutes'));
 app.use('/api/chat', require('./routes/chatRoutes'));   // <-- ye naya add karein
 app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/loyalty', require('./routes/loyaltyRoutes'));
 
 module.exports = app;

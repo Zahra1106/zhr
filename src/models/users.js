@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    loyaltyPoints: {
+      type: Number,
+      default: 0,
+    },
     phone: {
       type: String,
       trim: true,

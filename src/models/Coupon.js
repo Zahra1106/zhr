@@ -36,6 +36,13 @@ const couponSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // If set, this coupon is exclusive to one specific customer (a loyalty
+    // reward). If null, it's a public coupon anyone can use.
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true }
 );

@@ -73,6 +73,10 @@ exports.validateCoupon = async (req, res) => {
     if (coupon.usageLimit != null && coupon.usedCount >= coupon.usageLimit) {
       return res.status(400).json({ message: 'This coupon has reached its usage limit' });
     }
+    // Personal loyalty coupons can only be used by the customer they were issued to
+    if (coupon.user && coupon.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'This coupon is not valid for your account' });
+    }
     if (orderAmount < coupon.minOrderAmount) {
       return res.status(400).json({
         message: `This coupon requires a minimum order of Rs. ${coupon.minOrderAmount}`,
@@ -95,13 +99,16 @@ exports.validateCoupon = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-// @desc    Get the best active coupon to display to customers (public)
+
+// @desc    Get the best active PUBLIC coupon to display to customers
+//          (excludes personal loyalty coupons, which show up separately)
 // @route   GET /api/coupons/active
 exports.getActiveCoupon = async (req, res) => {
   try {
     const now = new Date();
     const coupon = await Coupon.findOne({
       isActive: true,
+      user: null,
       $or: [{ expiryDate: null }, { expiryDate: { $gte: now } }],
     }).sort({ discountPercent: -1 });
 

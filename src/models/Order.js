@@ -70,6 +70,18 @@ const orderSchema = new mongoose.Schema(
     estimatedDeliveryDate: {
       type: Date,
     },
+    pointsAwarded: {
+      type: Boolean,
+      default: false,
+    },
+    pointsEarned: {
+      type: Number,
+      default: 0,
+    },
+    pointsRedeemed: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
