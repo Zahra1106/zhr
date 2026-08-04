@@ -17,10 +17,10 @@ router.post('/', protect, placeOrder);
 router.get('/my-orders', protect, getMyOrders);
 router.get('/pending-review', protect, getPendingReviewOrders);
 router.get('/all', protect, getAllOrders);
+router.get('/revenue-analytics', protect, getRevenueAnalytics);
 router.put('/:id/status', protect, updateOrderStatus);
 router.get('/:id', protect, getOrderById);
 router.put('/:id/cancel', protect, cancelOrder);
 router.post('/product-order', protect, placeProductOrder);
-router.get('/revenue-analytics', protect, getRevenueAnalytics);
 
 module.exports = router;
