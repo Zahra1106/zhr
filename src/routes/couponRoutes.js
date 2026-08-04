@@ -8,12 +8,13 @@ const {
   validateCoupon,
   getActiveCoupon,
 } = require('../controllers/couponController');
+const { protect } = require('../middleware/authMiddleware');
 
 router.get('/', getCoupons);
 router.post('/', createCoupon);
 router.put('/:id', updateCoupon);
 router.delete('/:id', deleteCoupon);
-router.post('/validate', protect, validateCoupon);
+router.post('/validate', validateCoupon);
 router.get('/active', getActiveCoupon);
 
 module.exports = router;
