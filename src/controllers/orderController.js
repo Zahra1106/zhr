@@ -5,6 +5,7 @@ const Review = require('../models/Review');
 const Coupon = require('../models/Coupon');
 const { sendPushNotification } = require('../config/firebaseAdmin');
 const User = require('../models/users');
+const { generateInvoicePDF } = require('../utils/invoiceGenerator');
 
 // Automatically issues a one-time, exclusive loyalty coupon to a customer
 // once they cross either threshold: 5+ delivered orders, or Rs. 20,000+
@@ -235,6 +236,34 @@ exports.getOrderById = async (req, res) => {
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.status(200).json(order);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Download a PDF invoice/receipt for an order (owner or admin only).
+//          Streamed straight to the response so it can be saved or, from
+//          the app, immediately handed to the share sheet (WhatsApp, etc).
+// @route   GET /api/orders/:id/invoice
+exports.getOrderInvoice = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate({ path: 'design', populate: { path: 'fabric' } })
+      .populate('items.product')
+      .populate('user', 'name email');
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const isOwner = order.user?._id?.toString() === req.user.id;
+    if (!isOwner && !req.user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to view this invoice' });
+    }
+
+    const shortId = order._id.toString().slice(-8).toUpperCase();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Invoice-${shortId}.pdf"`);
+
+    generateInvoicePDF(order, res);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
