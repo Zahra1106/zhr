@@ -1,4 +1,5 @@
 const Fabric = require('../models/Fabric');
+const { notifyWishlistOnFabricDiscount } = require('../utils/wishlistNotify');
 
 // @desc    Get all fabrics (with optional filters)
 // @route   GET /api/fabrics
@@ -45,10 +46,21 @@ exports.createFabric = async (req, res) => {
 // @route   PUT /api/fabrics/:id
 exports.updateFabric = async (req, res) => {
   try {
+    const existingFabric = await Fabric.findById(req.params.id).select('discountPercent');
+    if (!existingFabric) return res.status(404).json({ message: 'Fabric not found' });
+
+    const previousDiscount = existingFabric.discountPercent || 0;
+
     const fabric = await Fabric.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
     });
-    if (!fabric) return res.status(404).json({ message: 'Fabric not found' });
+
+    // Fire-and-forget: only notify when the discount actually went up
+    // (new fabric on sale, or an existing sale got bigger).
+    if ((fabric.discountPercent || 0) > previousDiscount) {
+      notifyWishlistOnFabricDiscount(fabric);
+    }
+
     res.status(200).json(fabric);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });

@@ -28,6 +28,10 @@ const fabricSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    discountPercent: {
+      type: Number,
+      default: 0,
+    },
     quality: {
       type: String,
       enum: ['Standard', 'Premium', 'Luxury'],
