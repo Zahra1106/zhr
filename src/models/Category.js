@@ -28,6 +28,14 @@ const categorySchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // When true, this category (e.g. Bridal Wear, Groom Sherwani) can only
+    // be ordered with a 50% advance payment — COD is blocked for it, since
+    // these are expensive, made-to-order pieces the shop can't easily resell
+    // if a customer backs out after tailoring starts.
+    requiresAdvancePayment: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

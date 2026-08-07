@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const Order = require('../models/Order');
 const SavedDesign = require('../models/SavedDesign');
+const Category = require('../models/Category');
 const Review = require('../models/Review');
 const Coupon = require('../models/Coupon');
 const { sendPushNotification } = require('../config/firebaseAdmin');
@@ -52,8 +53,17 @@ exports.placeOrder = async (req, res) => {
       pointsToRedeem,
     } = req.body;
 
-    const design = await SavedDesign.findById(designId);
+    const design = await SavedDesign.findById(designId).populate('category');
     if (!design) return res.status(404).json({ message: 'Design not found' });
+
+    // Bridal/Groom (or any category the admin has flagged) must be paid
+    // with a 50% advance — enforced here, not just in the app, so it can't
+    // be bypassed by calling the API directly.
+    if (design.category?.requiresAdvancePayment && paymentMethod !== 'Advance Transfer') {
+      return res.status(400).json({
+        message: `${design.category.name} orders require a 50% advance payment. Cash on Delivery is not available for this category.`,
+      });
+    }
 
     const subtotal = design.estimatedPrice;
     const couponDiscount = discountAmount || 0;
