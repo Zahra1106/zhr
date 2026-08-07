@@ -4,6 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const {
   signup, login, getMe, updateMeasurements,
   toggleWishlist, getWishlist, addAddress, getAddresses, deleteAddress,
+  toggleProductWishlist, getProductWishlist,
   sendOtp, verifyOtpAndReset, googleLogin, saveFcmToken,
 } = require('../controllers/authController');
 
@@ -13,6 +14,8 @@ router.get('/me', protect, getMe);
 router.put('/measurements', protect, updateMeasurements);
 router.post('/wishlist/:designId', protect, toggleWishlist);
 router.get('/wishlist', protect, getWishlist);
+router.post('/product-wishlist/:productId', protect, toggleProductWishlist);
+router.get('/product-wishlist', protect, getProductWishlist);
 router.post('/addresses', protect, addAddress);
 router.get('/addresses', protect, getAddresses);
 router.delete('/addresses/:addressId', protect, deleteAddress);

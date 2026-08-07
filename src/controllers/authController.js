@@ -140,6 +140,39 @@ exports.getWishlist = async (req, res) => {
   }
 };
 
+// @desc    Toggle wishlist (add/remove ready-made product)
+// @route   POST /api/auth/product-wishlist/:productId
+exports.toggleProductWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const productId = req.params.productId;
+
+    const index = user.productWishlist.findIndex((id) => id.toString() === productId);
+
+    if (index > -1) {
+      user.productWishlist.splice(index, 1);
+    } else {
+      user.productWishlist.push(productId);
+    }
+
+    await user.save();
+    res.status(200).json({ productWishlist: user.productWishlist });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
+// @desc    Get product wishlist (populated)
+// @route   GET /api/auth/product-wishlist
+exports.getProductWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate('productWishlist');
+    res.status(200).json(user.productWishlist);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 // @desc    Add address
 // @route   POST /api/auth/addresses
 exports.addAddress = async (req, res) => {

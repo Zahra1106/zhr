@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
+const { notifyWishlistOnProductDiscount } = require('../utils/wishlistNotify');
 
 // @desc    Get all products (with filters)
 // @route   GET /api/products
@@ -50,8 +51,17 @@ exports.createProduct = async (req, res) => {
 // @route   PUT /api/products/:id
 exports.updateProduct = async (req, res) => {
   try {
+    const existingProduct = await Product.findById(req.params.id).select('discountPercent');
+    if (!existingProduct) return res.status(404).json({ message: 'Product not found' });
+
+    const previousDiscount = existingProduct.discountPercent || 0;
+
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!product) return res.status(404).json({ message: 'Product not found' });
+
+    if ((product.discountPercent || 0) > previousDiscount) {
+      notifyWishlistOnProductDiscount(product);
+    }
+
     res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ message: 'Server Error', error: error.message });

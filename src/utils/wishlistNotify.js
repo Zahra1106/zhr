@@ -36,4 +36,32 @@ async function notifyWishlistOnFabricDiscount(fabric) {
   }
 }
 
-module.exports = { notifyWishlistOnFabricDiscount };
+// @desc  When a ready-made product's discountPercent increases, tell every
+//        user who has that exact product sitting in their product wishlist.
+async function notifyWishlistOnProductDiscount(product) {
+  try {
+    if (!product || !product.discountPercent || product.discountPercent <= 0) return;
+
+    const users = await User.find({
+      productWishlist: product._id,
+      fcmToken: { $ne: '' },
+    }).select('fcmToken');
+
+    if (!users.length) return;
+
+    await Promise.all(
+      users.map((user) =>
+        sendPushNotification(
+          user.fcmToken,
+          'Your wishlist is on sale! 🎉',
+          `${product.name} just got a ${product.discountPercent}% discount — grab it before it's gone.`,
+          { type: 'product_wishlist_discount', productId: product._id.toString() }
+        )
+      )
+    );
+  } catch (error) {
+    console.error('Product wishlist discount notification error:', error.message);
+  }
+}
+
+module.exports = { notifyWishlistOnFabricDiscount, notifyWishlistOnProductDiscount };
